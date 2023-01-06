@@ -23,7 +23,6 @@ function lkg_model(l::Lkg,init_ps::Array{T,2}) where {T}
   model = Model()
   n = nparts(l,:V)
   @variable(model, ps[1:n,1:2])
-  @variable(model, p[1:2])
   for e in 1:nparts(l,:E)
     s,t,d = subpart(l,e,:src), subpart(l,e,:tgt), subpart(l,e,:length)
     if !subpart(l,s,:fixed) || !subpart(l,t,:fixed)
@@ -35,7 +34,6 @@ function lkg_model(l::Lkg,init_ps::Array{T,2}) where {T}
       @constraint(model, ps[v,:] .== init_ps[v,:])
     end
   end
-  @constraint(model,p_con,p[:] .== [0.,0])
   set_optimizer(model, Ipopt.Optimizer)
   set_optimizer_attribute(model, "print_level", 0)
   model
@@ -43,15 +41,10 @@ end
 
 function tweak_pos(model,input_ps,input_p,i)
   ps = model[:ps]
-  p = model[:p]
-  for i in eachindex(input_p)
-    set_normalized_rhs(model[:p_con][i], input_p[i])
-    set_start_value(p[i], input_p[i])
-  end
   for i in eachindex(input_ps)
     set_start_value(ps[i], input_ps[i])
   end
-  @objective(model, Min, sum((ps[i,:] .- p[:]) .^ 2))
+  @objective(model, Min, sum((ps[i,:] .- input_p[:]) .^ 2))
   optimize!(model)
   value.(ps)
 end
@@ -92,7 +85,7 @@ peaucellierLkg = @acset Lkg begin
   fixed = [true,true,false,false,false,false]
 end
 
-peaucellierPs = [300. 300 ; 400 300 ; 500 300 ; 642 300 ; 571 250 ; 571 350 ]
+peaucellierPs = [ 300. 300 ; 400 300 ; 500 300 ; 642 300 ; 571 250 ; 571 350 ]
 
 wattsLkg = @acset Lkg begin
   V = 5
@@ -104,6 +97,17 @@ wattsLkg = @acset Lkg begin
 end
 
 wattsPs = [200. 300 ; 700 350 ; 700 250 ; 1200 300 ; 700 300 ]
+
+fourBarLkg = @acset Lkg begin
+  V = 4
+  E = 4
+  src = [1,2,3,4]
+  tgt = [2,3,4,1]
+  length = [100,150,200,170]
+  fixed = [true,true,false,false]
+end
+
+fourBarPs = [300. 300 ; 400. 300 ; 0. 0 ; 0. 0 ]
 
 function interact_linkage(l,init_ps)
   n = nparts(l,:V)
